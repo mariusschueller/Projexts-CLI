@@ -1,8 +1,8 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::fs;
-use std::process::Command;
 use std::io::{self, Write};
+use std::process::Command;
 use serde::{Serialize, Deserialize};
 use serde_json;
 
@@ -35,6 +35,22 @@ fn add_shortcut(name: &str, command: &str) -> io::Result<()> {
         run_command: command.to_string(),
     });
     save_shortcuts(&shortcuts)
+}
+
+fn remove_shortcut(name: &str) -> io::Result<()> {
+    let mut shortcuts = load_shortcuts()?;
+    let initial_len = shortcuts.len();
+    
+    // Retain only shortcuts that do not match the given name
+    shortcuts.retain(|shortcut| shortcut.project_name != name);
+    
+    if shortcuts.len() == initial_len {
+        println!("No shortcut found with name '{}'.", name);
+    } else {
+        println!("Shortcut '{}' removed successfully.", name);
+        save_shortcuts(&shortcuts)?;
+    }
+    Ok(())
 }
 
 fn list_shortcuts() -> io::Result<()> {
@@ -79,45 +95,61 @@ struct Shortcut {
     run_command: String,
 }
 
-/// Search for a pattern in a file and display the lines that contain it.
 #[derive(Parser)]
+#[command(name = "projexts", about = "A CLI tool to manage project shortcuts")]
 struct Cli {
-    action: String,
-    name: Option<String>,
-    command: Option<String>,
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Add a new shortcut
+    Add {
+        /// Name of the project
+        name: String,
+        /// Command to run the project
+        command: String,
+    },
+    /// Removes a shortcut
+    Remove {
+        /// Name of the project
+        name: String,
+    },
+    /// List all shortcuts
+    List,
+    /// Run a shortcut by name
+    Run {
+        /// Name of the project to run
+        name: String,
+    }
 }
 
 fn main() {
     let args = Cli::parse();
 
-    match args.action.as_str() {
-        "add" => {
-            if let (Some(name), Some(command)) = (args.name.as_deref(), args.command.as_deref()) {
-                println!("Adding shortcut: {} -> {}", name, command);
-                if let Err(e) = add_shortcut(name, command) {
-                    eprintln!("Failed to add shortcut: {}", e);
-                }
-            } else {
-                println!("Error: 'add' action requires both <name> and <command>");
+    match args.command {
+        Commands::Add { name, command } => {
+            println!("Adding shortcut: {} -> {}", name, command);
+            if let Err(e) = add_shortcut(&name, &command) {
+                eprintln!("Failed to add shortcut: {}", e);
             }
         }
-        "list" => {
+        Commands::Remove { name } => {
+            println!("Removing shortcut: {}", name);
+            if let Err(e) = remove_shortcut(&name) {
+                eprintln!("Failed to remove shortcut: {}", e);
+            }
+        }
+        Commands::List => {
             if let Err(e) = list_shortcuts() {
                 eprintln!("Failed to list shortcuts: {}", e);
             }
         }
-        "run" => {
-            if let Some(name) = args.name.as_deref() {
-                if let Err(e) = run_shortcut(name) {
-                    eprintln!("Failed to run shortcut: {}", e);
-                }
-            } else {
-                println!("Error: 'run' action requires <name>");
+        Commands::Run { name } => {
+            if let Err(e) = run_shortcut(&name) {
+                eprintln!("Failed to run shortcut: {}", e);
             }
-        }
-        _ => {
-            println!("Error: unknown action '{}'. type projexts help to view commands", args.action);
         }
     }
 }
-
