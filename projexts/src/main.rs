@@ -1,11 +1,11 @@
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
+use serde_json;
 use std::fs;
 use std::io::{self, Write};
-use std::process::Command;
-use serde::{Serialize, Deserialize};
-use serde_json;
 use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
 
 /// Returns the path to the configuration file for storing shortcuts.
 ///
@@ -19,6 +19,26 @@ use std::path::Path;
 /// containerized or certain restricted systems).
 fn config_file_path() -> PathBuf {
     dirs::home_dir().unwrap().join(".projexts_config.json")
+}
+
+/// Resets the shortcuts by removing the configuration file.
+///
+/// This function deletes the configuration file associated with the shortcuts,
+/// effectively resetting all the stored shortcuts. It does so by calling the
+/// `config_file_path()` function to get the path of the configuration file and
+/// then removing that file from the filesystem.
+///
+/// # Returns
+/// - `Ok(())` if the file is successfully removed.
+/// - `Err(io::Error)` if there is an error removing the file (e.g., file not found or permission issues).
+///
+/// # Errors
+/// This function will return an `io::Result` which may contain an error if there are issues
+/// with file removal, such as the file not existing or lacking the necessary permissions.
+fn reset_shortcuts() -> io::Result<()> {
+    let path = config_file_path();
+    fs::remove_file(path)?;
+    Ok(())
 }
 
 /// Loads the list of shortcuts from the persistent storage file.
@@ -44,12 +64,6 @@ fn load_shortcuts() -> io::Result<Vec<Shortcut>> {
     Ok(serde_json::from_str(&data)?)
 }
 
-fn reset_shortcuts() -> io::Result<()> {
-    let path = config_file_path();
-    fs::remove_file(path)?;
-    Ok(())
-}
-
 /// Saves the given list of shortcuts to persistent storage.
 ///
 /// This function serializes the provided vector of `Shortcut` objects into a JSON
@@ -64,7 +78,7 @@ fn reset_shortcuts() -> io::Result<()> {
 /// This function will return an error if:
 /// - The `serde_json::to_string_pretty` function fails to serialize the `shortcuts` vector.
 /// - The `fs::write` function fails to write the serialized data to the storage file.
-fn save_shortcuts(shortcuts: &[Shortcut]) -> io::Result<()>{
+fn save_shortcuts(shortcuts: &[Shortcut]) -> io::Result<()> {
     let data = serde_json::to_string_pretty(shortcuts)?;
     fs::write(config_file_path(), data)?;
     Ok(())
@@ -75,7 +89,7 @@ fn save_shortcuts(shortcuts: &[Shortcut]) -> io::Result<()>{
 /// This function adds a new shortcut, consisting of a project name and a command, to the list of stored
 /// shortcuts. It first validates that the command is not empty and then ensures that all paths in the
 /// command are either absolute or can be converted to absolute paths. If any relative paths are provided,
-/// they are converted to absolute paths using `fs::canonicalize()`. If a valid path is not found for any 
+/// they are converted to absolute paths using `fs::canonicalize()`. If a valid path is not found for any
 /// command component, an error is returned.
 ///
 /// # Arguments
@@ -87,20 +101,26 @@ fn save_shortcuts(shortcuts: &[Shortcut]) -> io::Result<()>{
 /// * `Err(io::Error)` if the command is empty, or if no valid paths are found in the command.
 fn add_shortcut(name: &str, command: Vec<String>) -> io::Result<()> {
     if command.is_empty() {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "Command cannot be empty"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Command cannot be empty",
+        ));
     }
 
     // Convert relative paths to absolute paths where possible
-    let absolute_command: Vec<String> = command.into_iter().map(|cmd| {
-        let path = Path::new(&cmd);
-        if path.is_absolute() {
-            cmd
-        } else if let Ok(abs_path) = fs::canonicalize(path) {
-            abs_path.to_string_lossy().to_string()
-        } else {
-            cmd
-        }
-    }).collect();
+    let absolute_command: Vec<String> = command
+        .into_iter()
+        .map(|cmd| {
+            let path = Path::new(&cmd);
+            if path.is_absolute() {
+                cmd
+            } else if let Ok(abs_path) = fs::canonicalize(path) {
+                abs_path.to_string_lossy().to_string()
+            } else {
+                cmd
+            }
+        })
+        .collect();
 
     let mut shortcuts = load_shortcuts()?;
     shortcuts.push(Shortcut {
@@ -125,10 +145,10 @@ fn add_shortcut(name: &str, command: Vec<String>) -> io::Result<()> {
 fn remove_shortcut(name: &str) -> io::Result<()> {
     let mut shortcuts = load_shortcuts()?;
     let initial_len = shortcuts.len();
-    
+
     // Retain only shortcuts that do not match the given name
     shortcuts.retain(|shortcut| shortcut.project_name != name);
-    
+
     if shortcuts.len() == initial_len {
         println!("No shortcut found with name '{}'.", name);
     } else {
@@ -214,11 +234,7 @@ fn open_project_folder(name: &str) -> io::Result<()> {
                 ));
             };
 
-            Command::new(open_command)
-                .arg(dir)
-                .spawn()?
-                .wait()?; // Wait for the command to complete
-
+            Command::new(open_command).arg(dir).spawn()?.wait()?; // Wait for the command to complete
         } else {
             eprintln!("Error: Run command is empty for project '{}'", name);
         }
@@ -256,10 +272,7 @@ fn run_shortcut(name: &str, extra_args: Vec<String>) -> io::Result<()> {
             // Combine stored args with extra args
             let combined_args: Vec<String> = args.iter().cloned().chain(extra_args).collect();
 
-            Command::new(command)
-                .args(&combined_args)
-                .spawn()?
-                .wait()?; // Wait for the command to complete
+            Command::new(command).args(&combined_args).spawn()?.wait()?; // Wait for the command to complete
         } else {
             eprintln!("Error: Command for '{}' is empty.", name);
         }
@@ -277,13 +290,13 @@ fn run_shortcut(name: &str, extra_args: Vec<String>) -> io::Result<()> {
 ///
 /// # Arguments
 /// * `name` - The name of the shortcut to update.
-/// * `new_command` - An optional vector of new command arguments. If `Some(command)` is provided, 
-///   the command associated with the shortcut will be replaced with this new command. If `None` is 
+/// * `new_command` - An optional vector of new command arguments. If `Some(command)` is provided,
+///   the command associated with the shortcut will be replaced with this new command. If `None` is
 ///   provided, the command will not be changed.
 ///
 /// # Returns
 /// * `Ok(())` if the shortcut is found and updated successfully, and the changes are saved.
-/// * `Err(io::Error)` if an error occurs while loading or saving the shortcuts, or if the shortcut 
+/// * `Err(io::Error)` if an error occurs while loading or saving the shortcuts, or if the shortcut
 ///   with the given name is not found.
 ///
 /// # Errors
@@ -343,10 +356,7 @@ fn open_file_from_shortcut(name: &str) -> io::Result<()> {
             let path = Path::new(file_path);
 
             if path.exists() && path.is_file() {
-                Command::new(open_command)
-                    .arg(path)
-                    .spawn()?
-                    .wait()?; // Wait for the command to complete
+                Command::new(open_command).arg(path).spawn()?.wait()?; // Wait for the command to complete
                 println!("Opening file: {:?}", file_path);
             } else {
                 eprintln!("Error: '{}' does not exist or is not a file.", file_path);
@@ -399,10 +409,7 @@ fn git_push(name: &str, commit_message: &str) -> io::Result<()> {
             std::env::set_current_dir(dir)?;
 
             // Add changes
-            Command::new("git")
-                .arg("add")
-                .arg(".")
-                .status()?;
+            Command::new("git").arg("add").arg(".").status()?;
 
             // Commit changes
             Command::new("git")
@@ -412,9 +419,7 @@ fn git_push(name: &str, commit_message: &str) -> io::Result<()> {
                 .status()?;
 
             // Push changes
-            Command::new("git")
-                .arg("push")
-                .status()?;
+            Command::new("git").arg("push").status()?;
 
             println!("Changes committed and pushed from directory {:?}", dir);
         } else {
@@ -435,7 +440,7 @@ fn git_push(name: &str, commit_message: &str) -> io::Result<()> {
 struct Shortcut {
     /// The name of the project associated with the shortcut.
     project_name: String,
-    
+
     /// The command (with its arguments) to run the project.
     run_command: Vec<String>,
 }
@@ -451,14 +456,14 @@ struct Shortcut {
 #[command(name = "projexts", about = "A CLI tool to manage project shortcuts")]
 struct Cli {
     /// The subcommand to execute.
-    /// 
+    ///
     /// This field allows the user to specify which action to take. Each subcommand corresponds to a
     /// specific operation on the project shortcuts (e.g., adding, removing, listing shortcuts).
     #[command(subcommand)]
     command: Commands,
 }
 
-
+/// Commands for managing project shortcuts.
 #[derive(Subcommand)]
 enum Commands {
     /// Add a new shortcut
@@ -477,9 +482,7 @@ enum Commands {
     /// List all shortcuts
     List,
     /// Opens the enclosed folder of the run command
-    Open {
-        name: String,
-    },
+    Open { name: String },
     /// Open a file from a shortcut
     OpenFile {
         /// Name of the project
@@ -508,12 +511,14 @@ enum Commands {
         /// Commit message
         commit_message: String,
     },
+    /// Removes all saved shortcuts
+    Reset,
 }
 
 /// The main entry point for the `projexts` CLI tool.
 ///
 /// This function parses the command-line arguments using `Cli::parse()` and dispatches the appropriate
-/// subcommand based on the user's input. Each subcommand corresponds to a specific operation (such as adding, 
+/// subcommand based on the user's input. Each subcommand corresponds to a specific operation (such as adding,
 /// removing, or listing shortcuts), and the function handles any errors that occur during execution.
 ///
 /// It performs the following tasks:
@@ -557,7 +562,10 @@ fn main() {
             }
         }
         Commands::Run { name, extra_args } => {
-            println!("Running shortcut '{}' with extra arguments: {:?}", name, extra_args);
+            println!(
+                "Running shortcut '{}' with extra arguments: {:?}",
+                name, extra_args
+            );
             if let Err(e) = run_shortcut(&name, extra_args) {
                 eprintln!("Failed to run shortcut: {}", e);
             }
@@ -568,10 +576,18 @@ fn main() {
                 eprintln!("Failed to update shortcut: {}", e);
             }
         }
-        Commands::GitPush { name, commit_message } => {
+        Commands::GitPush {
+            name,
+            commit_message,
+        } => {
             println!("Pushing changes with commit message: {}", commit_message);
             if let Err(e) = git_push(&name, &commit_message) {
                 eprintln!("Failed to push changes: {}", e);
+            }
+        }
+        Commands::Reset => {
+            if let Err(e) = reset_shortcuts() {
+                eprintln!("Failed to reset shortcuts: {}", e);
             }
         }
     }
@@ -626,10 +642,17 @@ mod tests {
         assert!(result.is_ok());
         let shortcuts = load_shortcuts().unwrap();
         if shortcuts.len() != 1 {
-            panic!("Expected 1 shortcut, found {}: {:?}", shortcuts.len(), shortcuts);
+            panic!(
+                "Expected 1 shortcut, found {}: {:?}",
+                shortcuts.len(),
+                shortcuts
+            );
         }
         assert_eq!(shortcuts[0].project_name, "proj1");
-        assert_eq!(shortcuts[0].run_command, vec!["echo".to_string(), "Hello".to_string()]);
+        assert_eq!(
+            shortcuts[0].run_command,
+            vec!["echo".to_string(), "Hello".to_string()]
+        );
     }
 
     #[test]
@@ -674,7 +697,10 @@ mod tests {
         let result = update_shortcut("proj1", Some(vec!["echo".to_string(), "World".to_string()]));
         assert!(result.is_ok());
         let shortcuts = load_shortcuts().unwrap();
-        assert_eq!(shortcuts[0].run_command, vec!["echo".to_string(), "World".to_string()]);
+        assert_eq!(
+            shortcuts[0].run_command,
+            vec!["echo".to_string(), "World".to_string()]
+        );
     }
 
     #[test]
