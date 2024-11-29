@@ -44,6 +44,12 @@ fn load_shortcuts() -> io::Result<Vec<Shortcut>> {
     Ok(serde_json::from_str(&data)?)
 }
 
+fn reset_shortcuts() -> io::Result<()> {
+    let path = config_file_path();
+    fs::remove_file(path)?;
+    Ok(())
+}
+
 /// Saves the given list of shortcuts to persistent storage.
 ///
 /// This function serializes the provided vector of `Shortcut` objects into a JSON
@@ -84,28 +90,17 @@ fn add_shortcut(name: &str, command: Vec<String>) -> io::Result<()> {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "Command cannot be empty"));
     }
 
-    // Convert relative paths to absolute paths and validate
-    let mut absolute_command: Vec<String> = Vec::new();
-    let mut valid_path_found = false;
-
-    for cmd in command {
+    // Convert relative paths to absolute paths where possible
+    let absolute_command: Vec<String> = command.into_iter().map(|cmd| {
         let path = Path::new(&cmd);
         if path.is_absolute() {
-            if path.exists() {
-                absolute_command.push(cmd.clone());
-                valid_path_found = true;
-            }
+            cmd
         } else if let Ok(abs_path) = fs::canonicalize(path) {
-            absolute_command.push(abs_path.to_string_lossy().to_string());
-            valid_path_found = true;
+            abs_path.to_string_lossy().to_string()
         } else {
-            absolute_command.push(cmd); 
+            cmd
         }
-    }
-
-    if !valid_path_found {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "No valid paths in the command"));
-    }
+    }).collect();
 
     let mut shortcuts = load_shortcuts()?;
     shortcuts.push(Shortcut {
@@ -588,97 +583,113 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
 
-    fn test_config_file_path() -> PathBuf {
-        std::env::temp_dir().join(".projexts_config.json")
-    }
-
-    fn setup_test_env() -> io::Result<()> {
-        let config_path = test_config_file_path();
-        if config_path.exists() {
-            fs::remove_file(&config_path)?;
-        }
-        Ok(())
-    }
-
-    fn load_shortcuts_for_test() -> io::Result<Vec<Shortcut>> {
-        let path = test_config_file_path();
-        if !path.exists() {
-            fs::File::create(&path)?.write_all(b"[]")?;
-        }
-        let data = fs::read_to_string(path)?;
-        Ok(serde_json::from_str(&data)?)
-    }
-
-    fn save_shortcuts_for_test(shortcuts: &[Shortcut]) -> io::Result<()> {
-        let data = serde_json::to_string_pretty(shortcuts)?;
-        fs::write(test_config_file_path(), data)?;
-        Ok(())
+    #[test]
+    fn test_config_file_path() {
+        let path = config_file_path();
+        let expected_path = dirs::home_dir().unwrap().join(".projexts_config.json");
+        assert_eq!(path, expected_path);
+        _ = reset_shortcuts();
     }
 
     #[test]
-    fn test_add_shortcut() -> io::Result<()> {
-        setup_test_env()?;
-
-        let name = "TestProject";
-        let command = vec!["echo".to_string(), "Hello, world!".to_string()];
-        let mut shortcuts = load_shortcuts_for_test()?;
-
-        shortcuts.push(Shortcut {
-            project_name: name.to_string(),
-            run_command: command.clone(),
-        });
-
-        save_shortcuts_for_test(&shortcuts)?;
-
-        let loaded_shortcuts = load_shortcuts_for_test()?;
-        assert_eq!(loaded_shortcuts.len(), 1);
-        assert_eq!(loaded_shortcuts[0].project_name, name);
-        assert_eq!(loaded_shortcuts[0].run_command, command);
-
-        Ok(())
+    fn test_load_shortcuts() {
+        let _ = reset_shortcuts();
+        let result = load_shortcuts();
+        assert!(result.is_ok());
+        let shortcuts = result.unwrap();
+        assert!(shortcuts.is_empty());
     }
 
     #[test]
-    fn test_remove_shortcut() -> io::Result<()> {
-        setup_test_env()?;
-
-        let shortcuts = vec![Shortcut {
-            project_name: "TestProject".to_string(),
-            run_command: vec!["echo".to_string(), "Hello, world!".to_string()],
-        }];
-        save_shortcuts_for_test(&shortcuts)?;
-
-        let mut loaded_shortcuts = load_shortcuts_for_test()?;
-        loaded_shortcuts.retain(|s| s.project_name != "TestProject");
-        save_shortcuts_for_test(&loaded_shortcuts)?;
-
-        let updated_shortcuts = load_shortcuts_for_test()?;
-        assert!(updated_shortcuts.is_empty());
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_list_shortcuts() -> io::Result<()> {
-        setup_test_env()?;
-
+    fn test_save_shortcuts() {
         let shortcuts = vec![
             Shortcut {
-                project_name: "ProjectOne".to_string(),
-                run_command: vec!["echo".to_string(), "One".to_string()],
+                project_name: "proj1".to_string(),
+                run_command: vec!["echo".to_string(), "Hello".to_string()],
             },
             Shortcut {
-                project_name: "ProjectTwo".to_string(),
-                run_command: vec!["echo".to_string(), "Two".to_string()],
+                project_name: "proj2".to_string(),
+                run_command: vec!["echo".to_string(), "World".to_string()],
             },
         ];
-        save_shortcuts_for_test(&shortcuts)?;
+        let result = save_shortcuts(&shortcuts);
+        assert!(result.is_ok());
+        let loaded_shortcuts = load_shortcuts().unwrap();
+        assert_eq!(shortcuts, loaded_shortcuts);
+    }
 
-        let output = std::panic::catch_unwind(|| list_shortcuts());
-        assert!(output.is_ok());
+    #[test]
+    fn test_add_shortcut() {
+        let _ = reset_shortcuts();
+        let result = add_shortcut("proj1", vec!["echo".to_string(), "Hello".to_string()]);
+        assert!(result.is_ok());
+        let shortcuts = load_shortcuts().unwrap();
+        if shortcuts.len() != 1 {
+            panic!("Expected 1 shortcut, found {}: {:?}", shortcuts.len(), shortcuts);
+        }
+        assert_eq!(shortcuts[0].project_name, "proj1");
+        assert_eq!(shortcuts[0].run_command, vec!["echo".to_string(), "Hello".to_string()]);
+    }
 
-        Ok(())
+    #[test]
+    fn test_remove_shortcut() {
+        let _ = reset_shortcuts();
+        let _ = add_shortcut("proj1", vec!["echo".to_string(), "Hello".to_string()]);
+        let result = remove_shortcut("proj1");
+        assert!(result.is_ok());
+        let shortcuts = load_shortcuts().unwrap();
+        assert!(shortcuts.is_empty());
+    }
+
+    #[test]
+    fn test_list_shortcuts() {
+        let _ = reset_shortcuts();
+        let _ = add_shortcut("proj1", vec!["echo".to_string(), "Hello".to_string()]);
+        let _ = add_shortcut("proj2", vec!["echo".to_string(), "World".to_string()]);
+        let result = list_shortcuts();
+        assert!(result.is_ok());
+    }
+
+    // #[test]
+    // fn test_open_project_folder() {
+    //     let _ = reset_shortcuts();
+    //     let _ = add_shortcut("proj1", vec![".".to_string()]);
+    //     let result = open_project_folder("proj1");
+    //     assert!(result.is_ok());
+    // }
+
+    #[test]
+    fn test_run_shortcut() {
+        let _ = reset_shortcuts();
+        let _ = add_shortcut("proj1", vec!["echo".to_string(), "Hello".to_string()]);
+        let result = run_shortcut("proj1", vec![]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_shortcut() {
+        let _ = reset_shortcuts();
+        let _ = add_shortcut("proj1", vec!["echo".to_string(), "Hello".to_string()]);
+        let result = update_shortcut("proj1", Some(vec!["echo".to_string(), "World".to_string()]));
+        assert!(result.is_ok());
+        let shortcuts = load_shortcuts().unwrap();
+        assert_eq!(shortcuts[0].run_command, vec!["echo".to_string(), "World".to_string()]);
+    }
+
+    // #[test]
+    // fn test_open_file_from_shortcut() {
+    //     let _ = reset_shortcuts();
+    //     let _ = add_shortcut("proj1", vec!["Cargo.toml".to_string()]);
+    //     let result = open_file_from_shortcut("proj1");
+    //     assert!(result.is_ok());
+    // }
+
+    #[test]
+    fn test_git_push() {
+        let _ = reset_shortcuts();
+        let _ = add_shortcut("proj1", vec![".".to_string()]);
+        let result = git_push("proj1", "Initial commit");
+        assert!(result.is_ok());
     }
 }
