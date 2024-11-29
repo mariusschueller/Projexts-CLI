@@ -14,8 +14,8 @@ jobs:
       with:
         toolchain: stable
     - name: Build
-      working-directory:  ../../projexts
+      working-directory:  projexts
       run: cargo build --verbose
     - name: Run tests
-      working-directory: ../../projexts
+      working-directory: projexts
       run: cargo test --verbose
