@@ -30,37 +30,58 @@ To compile and install the Command Line Shortcut Manager, ensure you have the Ru
 
 Once the Command Line Shortcut Manager is installed, you can start managing your shortcuts. Below are some common commands:
 
-1. **Add a Shortcut:**
+1. **Add a Shortcut**
    ```bash
-   projexts add <project-name> "<run-command>"
+   projexts add <name> -- <command> [extra_args...]
    ```
-   Example:
-   ```bash
-   projexts add my_script "python3 my_script.py"
-   ```
+   Add a new shortcut with a project name and associated command. Optionally appending "[extra_args...]" extra parameters to be saved if desired. Local paths are also able to be saved.
 
-2. **Remove a Shortcut:**
-   ```bash
-   projexts remove <project-name>
-   ```
-   Example:
-   ```bash
-   projexts remove my_script
-   ```
-
-3. **List Shortcuts:**
+2. **List Shortcuts**
    ```bash
    projexts list
    ```
-   This command displays all stored project names and their associated commands.
+   Display all stored shortcuts and their associated commands.
 
-4. **Run a Shortcut:**
+3. **Run a Shortcut**
    ```bash
-   projexts run <project-name>
+   projexts run <name> -- [extra_args...]
    ```
-   Example:
+   Execute the command associated with a given shortcut, optionally appending "-- [extra_args...]" for additional arguments.
+
+4. **Update a Shortcut**
    ```bash
-   projexts run my_script
+   projexts update <name> -- <new_command> [extra_args...]
    ```
+   Modify the command of an existing shortcut. Can optionally append "-- [extra_args...]" for additional arguments.
+
+5. **Remove a Shortcut**
+   ```bash
+   projexts remove <name>
+   ```
+   Delete a shortcut from the configuration file.
+
+6. **Reset Shortcuts**
+   ```bash
+   projexts reset
+   ```
+   Delete the configuration file to clear all stored shortcuts.
+
+7. **Open a Project Folder**
+   ```bash
+   projexts open <name>
+   ```
+   Open the directory associated with the specified shortcut.
+
+8. **Open a Project File**
+   ```bash
+   projexts open-file <name>
+   ```
+   Open the first file found associated with the specified shortcut.
+
+9. **Git Commit and Push**
+   ```bash
+   projexts git-push <name> <commit_message>
+   ```
+   Commit and push changes to a Git repository linked to the project shortcut.
 
 By following these commands, users can efficiently manage their shortcuts, making it easy to run their preferred programs directly from the command line.
