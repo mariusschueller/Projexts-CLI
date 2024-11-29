@@ -12,5 +12,5 @@ jobs:
           toolchain: stable
 
       - name: Build project
-        working-directory: /projexts
+        working-directory: ../projexts
         run: cargo build --verbose
