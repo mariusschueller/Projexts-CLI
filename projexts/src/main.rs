@@ -651,13 +651,13 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    // #[test]
-    // fn test_open_project_folder() {
-    //     let _ = reset_shortcuts();
-    //     let _ = add_shortcut("proj1", vec![".".to_string()]);
-    //     let result = open_project_folder("proj1");
-    //     assert!(result.is_ok());
-    // }
+    #[test]
+    fn test_open_project_folder() {
+        let _ = reset_shortcuts();
+        let _ = add_shortcut("proj1", vec![".".to_string()]);
+        let result = open_project_folder("proj1");
+        assert!(result.is_ok());
+    }
 
     #[test]
     fn test_run_shortcut() {
@@ -677,13 +677,13 @@ mod tests {
         assert_eq!(shortcuts[0].run_command, vec!["echo".to_string(), "World".to_string()]);
     }
 
-    // #[test]
-    // fn test_open_file_from_shortcut() {
-    //     let _ = reset_shortcuts();
-    //     let _ = add_shortcut("proj1", vec!["Cargo.toml".to_string()]);
-    //     let result = open_file_from_shortcut("proj1");
-    //     assert!(result.is_ok());
-    // }
+    #[test]
+    fn test_open_file_from_shortcut() {
+        let _ = reset_shortcuts();
+        let _ = add_shortcut("proj1", vec!["Cargo.toml".to_string()]);
+        let result = open_file_from_shortcut("proj1");
+        assert!(result.is_ok());
+    }
 
     #[test]
     fn test_git_push() {
