@@ -1,16 +1,21 @@
+name: Rust
+
+on: [push, pull_request]
+
 jobs:
-  build:
+  test:
+
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Build project
-        working-directory: ../projexts
-        run: cargo build --verbose
+    - uses: actions/checkout@v2
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - name: Build
+      working-directory:  ../../projexts
+      run: cargo build --verbose
+    - name: Run tests
+      working-directory: ../../projexts
+      run: cargo test --verbose
