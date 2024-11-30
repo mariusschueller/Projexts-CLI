@@ -86,7 +86,7 @@ Once the Command Line Shortcut Manager is installed, you can start managing your
 
 By following these commands, users can efficiently manage their shortcuts, making it easy to run their preferred programs directly from the command line.
 
-*Note that for running tests multithreading can't be used when testing. Please the following command
+*Note that for multithreading can't be used when testing. Please the following command:
  ```bash
 cargo test -- --test-threads=1
 ```
