@@ -3,7 +3,7 @@
 
 ## Description
 
-Projexts is a simple and efficient tool designed to help users easily manage shortcuts for running their frequently used programs and scripts. By allowing users to add, remove, and list shortcuts associated with specific commands, this tool enhances productivity and reduces the time spent navigating complex command-line inputs. The tool stores project names alongside their corresponding run commands in a lightweight configuration file, enabling users to access their shortcuts easily from the command line. 
+Projexts is a simple and efficient command line tool designed to help users easily manage shortcuts for running their frequently used programs and scripts. By allowing users to add, remove, and list shortcuts associated with specific commands, this tool enhances productivity and reduces the time spent navigating complex command-line inputs. The tool stores project names alongside their corresponding run commands in a lightweight configuration file, enabling users to access their shortcuts easily from the command line. 
  
 ## Installation
 
